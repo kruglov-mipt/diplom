@@ -385,6 +385,8 @@ class Journal(object, metaclass=pyons.Singleton):
     def write_reader_antenna_info(self, reader_antenna_info_record):
         assert isinstance(reader_antenna_info_record, ReaderAntennaInfoRecord)
         index = reader_antenna_info_record.index
+        if index in self.reader_antenna_info:
+            print(f"ERROR TO APPEAR: index = {index}, antenna_info: {self.reader_antenna_info}")
         assert index not in self.reader_antenna_info
         self.reader_antenna_info[index] = reader_antenna_info_record
 

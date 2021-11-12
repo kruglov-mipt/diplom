@@ -2,8 +2,8 @@ from ast import literal_eval as make_tuple
 from copy import deepcopy
 import click
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
-from multiprocessing import cpu_count, Pool
+from typing import Optional, Sequence, List
+import multiprocessing
 import numpy as np
 import pandas as pd
 from time import time_ns
@@ -11,11 +11,12 @@ from time import time_ns
 import pyons
 
 from pyons.models.rfid.serialization import Input, build_model_descriptor, \
-    build_output, pprint_output, Output
+    build_output, pprint_output, Output, parse_tari
 from pyons.models.rfid.factory import Factory
 from pyons.models.rfid.model import Model
 from pyons.models.rfid.generator import Generator
 from pyons.models.rfid.journal import Journal
+from pyons.models.rfid.protocol import DR, TagEncoding
 
 
 def simulate(inp: Input, verbose: bool = False) -> Output:
@@ -71,7 +72,7 @@ def simulate_all(inputs: Sequence[Input],
                  use_jupyter: bool = False) -> Sequence[Output]:
     t_start = time_ns()
     if num_proc < 0:
-        num_proc = max(cpu_count() - 1, 1)
+        num_proc = max(multiprocessing.cpu_count() - 1, 1)
     if update_fields:
         inputs = list(inputs)
         for i, inp in enumerate(inputs):
@@ -80,14 +81,76 @@ def simulate_all(inputs: Sequence[Input],
                 if key in inp.__dataclass_fields__:
                     setattr(inp, key, value)
             inputs[i] = inp
+
+    # HACK: PyONS has strong intention to use Singleton pattern
+    # (for instance, Journal). And very bad reset capabilities.
+    # Since then, running models sequentially in the same process
+    # leads to errors - some information comes from the previous run.
+    # To overcome this issue here, we launch one simulation per worker, and
+    # to do this we split inputs by the number of processes in the pool
+    # and start a new pool for each new group.
+    #
+    # Since now each group of N_proc models will start simultaneously,
+    # we should take care of time balance between executions:
+    # - more cars needed => longer simulation
+    # - larger speed => shorter simulation
+    # - larger tag data rate => longer simulation
+    # To sort, we add an extra parameter "_tag_bitrate" to each parameter
+    # and sort 1) by max_vehicles_num (DESC) and 2) by _tag_bitrate (DESC).
+    # After simulation, we restore the order.
+    for i, inp in enumerate(inputs):
+        setattr(inp, '_index', i)
+        tari = parse_tari(inp.tari)
+        m = TagEncoding.parse(inp.m).value
+        trcal = tari * (1 + inp.data0_multiplier) * inp.rtcal_multiplier
+        datarate = DR.parse(inp.dr).ratio / (trcal * m)
+        setattr(inp, '_tari', tari)
+        setattr(inp, '_datarate', datarate)
+
+    max_vehicle_speed = max([inp.vehicle_speed for inp in inputs])
+
+    def get_input_key(inp_: Input):
+        return (
+            inp_.max_vehicles_num,
+            max_vehicle_speed - inp_.vehicle_speed,
+            getattr(inp_, '_datarate'),
+            25e-6 - getattr(inp_, '_tari'),
+        )
+
+    inputs.sort(key=get_input_key, reverse=True)
+
+    # Split inputs into groups by the number of processes.
+    i = 0
+    inputs_groups_list: List[List[Input]] = []
+    while i < len(inputs):
+        inputs_groups_list.append(inputs[i:i+num_proc])
+        i += num_proc
+
+    # Select the proper tqdm progress bar (different for console and Jupyter).
     if use_jupyter:
         from tqdm.notebook import tqdm
     else:
         from tqdm import tqdm
-    for inp in inputs:
-        print(inp)
-    with Pool(num_proc) as pool:
-        outputs = pool.map(simulate, inputs)
+
+    # Execute the simulations.
+    outputs = []
+    for inputs_group in tqdm(inputs_groups_list):
+        # Require the pool to free process resources after execution
+        # by passing maxtaskperchild=1.
+        # If used without groups (on the plain inputs list), for some
+        # reason reuses the process for the second time.
+        with multiprocessing.Pool(num_proc, maxtasksperchild=1) as pool:
+            outputs_group = pool.map(simulate, inputs_group)
+
+        # Add index to outputs to sort them back.
+        for inp, out in zip(inputs_group, outputs_group):
+            setattr(out, '_index', getattr(inp, '_index'))
+        outputs.extend(outputs_group)
+
+    # Sort inputs and outputs back using _index attribute.
+    inputs.sort(key=lambda inp: getattr(inp, '_index'))
+    outputs.sort(key=lambda inp: getattr(inp, '_index'))
+
     t_elapsed = (time_ns() - t_start) / 1_000_000_000
     print(f"[=] Simulated {len(inputs)} inputs in {t_elapsed} sec.")
     return outputs
