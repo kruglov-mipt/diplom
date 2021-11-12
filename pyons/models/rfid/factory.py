@@ -134,8 +134,13 @@ class Factory(object, metaclass=pyons.Singleton):
             orientation = -1.0 * np.array(self.params.vehicle_direction)
 
         tag_id = next(self.tag_id)
-        epc = self.params.epc_base_8b + "{:08X}".format(tag_id)
-        tid = self.params.tid_base_4b + "{:08X}".format(tag_id)
+
+        if self.params.epc_size < 1:
+            raise ValueError(f"EPC size must be >= 1 bytes")
+        if self.params.tid_size < 2:
+            raise ValueError(f"TID size must be >= 2 bytes")
+        epc = '00' * (self.params.epc_size - 1) + f"{tag_id:02X}"
+        tid = 'E2' + '00' * (self.params.tid_size - 2) + f"{tag_id:02X}"
 
         td = tag.TagDescriptor()
         td.identifier = "Tag{}{}".format(vehicle_index, location[0].upper())

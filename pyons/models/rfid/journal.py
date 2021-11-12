@@ -439,10 +439,8 @@ class Journal(object, metaclass=pyons.Singleton):
         for vid, record in self.vehicle_info.items():
             if vid > n_vehicles:
                 continue
-            print("vid={}, n_read={}".format(vid, record.n_read))
             if record.n_read > 0:
                 accum += 1
-        print("n_vehicles={}, accum={}".format(n_vehicles, accum))
         return accum / n_vehicles
 
     def get_tag_read_rate(self):

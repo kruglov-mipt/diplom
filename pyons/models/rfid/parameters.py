@@ -54,8 +54,8 @@ class ModelDescriptor(object):
         self.tag_s2_persistence = 2.0
         self.tag_s3_persistence = 2.0
         self.tag_sl_persistence = 2.0
-        self.epc_base_8b = '0000000000000000'
-        self.tid_base_4b = 'E00F0000'
+        self.epc_size = 12
+        self.tid_size = 6
         self.vehicle_lifetime = 2.0
         self.vehicle_generation_interval = lambda: np.random.uniform(0.9, 1.1)
         self.max_vehicles_num = 1.0

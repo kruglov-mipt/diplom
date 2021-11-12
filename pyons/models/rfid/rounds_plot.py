@@ -1,6 +1,7 @@
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
-from scipy.interpolate import spline
+from scipy import interpolate
 
 
 if __name__ == '__main__':
@@ -14,10 +15,10 @@ if __name__ == '__main__':
 
     x_min = 2.0
     x_max = 56.526
-    x1_smooth = np.linspace(x_min, x_max, 200)
-    y1_smooth = spline(x1, y1, x1_smooth)
-    x2_smooth = np.linspace(x_min, x_max, 200)
-    y2_smooth = spline(x2, y2, x2_smooth)
+#     x1_smooth = np.linspace(x_min, x_max, 200)
+#     y1_smooth = interpolate.splev(x1, y1, x1_smooth)
+#     x2_smooth = np.linspace(x_min, x_max, 200)
+#     y2_smooth = interpolate.splev(x2, y2, x2_smooth)
 
     fig, ax = plt.subplots(1, 1)
     ax.plot(x1, y1, linewidth=2.0, label='S0, A only, 2 antennas')
@@ -35,8 +36,9 @@ if __name__ == '__main__':
     ax.set_xlim(x_min, x_max)
     ax.set_xticks(np.arange(x_min, x_max, 10.0))
     ax.grid()
-    plt.savefig("/home/andrey/Workspace/Lab69/article-ieee-rfid2017/paper/"
-                "img/round_duration_vs_antennas.eps")
-    plt.savefig("/home/andrey/Workspace/Lab69/article-ieee-rfid2017/paper/"
-                "img/round_duration_vs_antennas.png")
+#     plt.savefig("/home/andrey/Workspace/Lab69/article-ieee-rfid2017/paper/"
+#                 "img/round_duration_vs_antennas.eps")
+#     plt.savefig("/home/andrey/Workspace/Lab69/article-ieee-rfid2017/paper/"
+#                 "img/round_duration_vs_antennas.png")
+    matplotlib.use('GTK3Agg')
     plt.show()

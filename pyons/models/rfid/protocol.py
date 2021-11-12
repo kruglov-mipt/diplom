@@ -1,5 +1,6 @@
 from enum import Enum
 import numpy as np
+from typing import Union
 import binascii
 import collections
 import pyons
@@ -17,6 +18,14 @@ class DR(Enum):
     def ratio(self):
         return 8.0 if self == DR.DR_8 else 64.0/3
 
+    @staticmethod
+    def parse(s: Union[str, int]) -> "DR":
+        if s == "8" or s == 8:
+            return DR.DR_8
+        if s == "64/3":
+            return DR.DR_643
+        raise ValueError(f"Unrecognized DR value '{s}'")
+
 
 class TagEncoding(Enum):
     FM0 = 1
@@ -27,6 +36,19 @@ class TagEncoding(Enum):
     @staticmethod
     def encode(m):
         return format(int(np.log2(m.value)), '02b')
+
+    @staticmethod
+    def parse(s: Union[str, int]) -> "TagEncoding":
+        s_ = s.upper() if isinstance(s, str) else s
+        if s == 1 or s_ == "1" or s_ == "M1" or s_ == "FM0":
+            return TagEncoding.FM0
+        if s == 2 or s_ == "2" or s_ == "M2":
+            return TagEncoding.M2
+        if s == 4 or s_ == "4" or s_ == "M4":
+            return TagEncoding.M4
+        if s == 8 or s_ == "8" or s_ == "M8":
+            return TagEncoding.M8
+        raise ValueError(f"Unrecognized TagEncoding value '{s}'")
 
 
 class Bank(Enum):
@@ -61,6 +83,17 @@ class Sel(Enum):
     def encode(field):
         return format(field.value, '02b')
 
+    @staticmethod
+    def parse(s: str) -> "Sel":
+        s_ = s.upper()
+        if s_ == "ALL":
+            return Sel.SL_ALL
+        if s_ == "NO":
+            return Sel.SL_NO
+        if s_ == "YES":
+            return Sel.SL_YES
+        raise ValueError(f"Unrecognized Sel value '{s}'")
+
 
 class Session(Enum):
     S0 = 0
@@ -71,6 +104,19 @@ class Session(Enum):
     @staticmethod
     def encode(session):
         return format(session.value, '02b')
+
+    @staticmethod
+    def parse(s: Union[str, int]) -> "Session":
+        s_ = s.upper() if isinstance(s, str) else s
+        if s == 0 or s_ == "0" or s_ == "S0":
+            return Session.S0
+        if s == 1 or s_ == "1" or s_ == "S1":
+            return Session.S1
+        if s == 2 or s_ == "2" or s_ == "S2":
+            return Session.S2
+        if s == 3 or s_ == "3" or s_ == "S3":
+            return Session.S3
+        raise ValueError(f"Unrecognized Session value '{s}'")
 
 
 def encode_ebv(value, first_block=True):
@@ -186,8 +232,8 @@ class Command(object):
 
     @property
     def code(self):
-        raise NotImplementedError() 
-    
+        raise NotImplementedError()
+
     @property
     def name(self):
         return NotImplementedError()
@@ -229,7 +275,7 @@ class Query(Command):
     @property
     def name(self):
         return "Query"
-    
+
     @property
     def bitlen(self):
         return 22
@@ -264,7 +310,7 @@ class QueryRep(Command):
     @property
     def name(self):
         return "QueryRep"
-    
+
     @property
     def bitlen(self):
         return 4
@@ -289,7 +335,7 @@ class Ack(Command):
     @property
     def name(self):
         return "ACK"
-    
+
     @property
     def bitlen(self):
         return 18
@@ -315,7 +361,7 @@ class ReqRn(Command):
     @property
     def name(self):
         return "Req_RN"
-    
+
     @property
     def bitlen(self):
         return 40
@@ -392,7 +438,7 @@ class TagFrame(object):
     def encode(self):
         # 'e' is end-of-signaling 'dummy' data-1
         return self.preamble + self.reply.encode() + 'e'
-    
+
     @property
     def bitlen(self):
         # +1 for end-of-signaling 'dummy' data-1

@@ -37,6 +37,6 @@ class Generator(Entity):
         pyons.create_timeout(self.params.vehicle_generation_interval(),
                              ('generate vehicle', lane))
         self.n_generated += 1
-        if self.n_generated % 10 == 0:
-            print("{:4.1f} [GENERATOR] created {} vehicles".format(
-                systime.time() - self.t_started, self.n_generated))
+        # if self.n_generated % 10 == 0:
+        #     print("{:4.1f} [GENERATOR] created {} vehicles".format(
+        #         systime.time() - self.t_started, self.n_generated))

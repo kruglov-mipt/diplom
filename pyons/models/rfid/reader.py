@@ -53,6 +53,16 @@ class Reader(phy.Node):
         ONLY_B = 1
         ALTER = 2
 
+        @staticmethod
+        def parse(s: str):
+            if s == "A" or s == "a":
+                return Reader.SessionStrategy.ONLY_A
+            elif s == "B" or s == "b":
+                return Reader.SessionStrategy.ONLY_B
+            elif s.upper() == "AB" or s.upper() == "ALTER":
+                return Reader.SessionStrategy.ALTER
+            raise ValueError(f"Unrecognized session strategy '{s}'")
+
     def __init__(self, descriptor):
         super().__init__()
         assert isinstance(descriptor, ReaderDescriptor)

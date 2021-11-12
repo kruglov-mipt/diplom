@@ -1,6 +1,19 @@
+from typing import Callable
 import numpy as np
 from numpy import linalg as la
 import scipy.special as special
+
+
+def parse_antenna_rp(name: str) -> Callable:
+    if name == "dipole":
+        return dipole_rp
+    raise ValueError(f"Unrecognized antenna pattern '{name}'")
+
+
+def parse_ber_model(name: str) -> Callable:
+    if name == "rayleigh":
+        return ber_over_rayleigh
+    raise ValueError(f"Unrecognized BER model '{name}'")
 
 
 def vectorize(fn):
