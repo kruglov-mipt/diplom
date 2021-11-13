@@ -189,8 +189,9 @@ def cli():
 @click.option('-M', '--max-vehicles', type=int, default=None)
 @click.option('-j', '--num-cpu', type=int, default=-1)
 @click.option('--jupyter', default=False)
+@click.option("-o", "--output", type=str, default=None)
 @click.argument("file_path", metavar="PATH")
-def start_simulate_csv(file_path, jupyter, num_cpu, max_vehicles):
+def start_simulate_csv(file_path, output, jupyter, num_cpu, max_vehicles):
     df = pd.read_csv(file_path, converters={
         'vehicle_direction': make_tuple,
     })
@@ -202,7 +203,9 @@ def start_simulate_csv(file_path, jupyter, num_cpu, max_vehicles):
 
     df = simulate_df(df, num_proc=num_cpu, use_jupyter=jupyter,
                      update_fields=updates)
-    df.to_csv(file_path, index=False)
+
+    out_path = output if output is not None else file_path
+    df.to_csv(out_path, index=False)
 
 
 if __name__ == '__main__':
