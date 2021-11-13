@@ -1,7 +1,6 @@
 from ast import literal_eval as make_tuple
 from copy import deepcopy
 import click
-from dataclasses import dataclass
 from typing import Optional, Sequence, List
 import multiprocessing
 import numpy as np
@@ -23,14 +22,10 @@ def simulate(inp: Input, verbose: bool = False) -> Output:
     md = build_model_descriptor(inp)
 
     if verbose:
-        print(f"* Simulating: SimID={inp.simulation_id}, "
-            f"V={inp.vehicle_speed}, "
-            f"M={md.tag_encoding.name}, "
-            f"Tari={md.tari * 1_000_000:g}, "
-            f"Q={inp.q}, "
-            f"TRExt={inp.trext}, "
-            f"TxPower={inp.reader_tx_power}dBm, "
-            f"Strategy={md.reader_session_strategy.name}")
+        print(f"* Simulating: V={inp.vehicle_speed}, M={md.tag_encoding.name}, "
+              f"Tari={md.tari * 1_000_000:g}, Q={inp.q}, TRExt={inp.trext}, "
+              f"TxPower={inp.reader_tx_power}dBm, TIDSize={inp.tid_size}, "
+              f"Strategy={md.reader_session_strategy.name}")
 
     factory = Factory(md)
     model = Model(md)
@@ -52,7 +47,6 @@ def simulate(inp: Input, verbose: bool = False) -> Output:
 
     out = build_output(
         journal,
-        sim_id=inp.simulation_id,
         elapsed_time=((t_end_ns - t_start_ns) / 1_000_000_000)
     )
 
@@ -73,6 +67,7 @@ def simulate_all(inputs: Sequence[Input],
     t_start = time_ns()
     if num_proc < 0:
         num_proc = max(multiprocessing.cpu_count() - 1, 1)
+
     if update_fields:
         inputs = list(inputs)
         for i, inp in enumerate(inputs):
@@ -153,7 +148,7 @@ def simulate_all(inputs: Sequence[Input],
 
     t_elapsed = (time_ns() - t_start) / 1_000_000_000
     print(f"[=] Simulated {len(inputs)} inputs in {t_elapsed} sec.")
-    return outputs
+    return inputs, outputs
 
 
 def simulate_df(
@@ -169,12 +164,14 @@ def simulate_df(
             if key in Input.__dataclass_fields__
         }), axis=1)
 
-    outputs = simulate_all(inputs, num_proc=num_proc, use_jupyter=use_jupyter,
-                           update_fields=update_fields)
+    inputs, outputs = simulate_all(
+        inputs,
+        num_proc=num_proc,
+        use_jupyter=use_jupyter,
+        update_fields=update_fields
+    )
 
     for key in Output.__dataclass_fields__:
-        if key == 'simulation_id':
-            continue
         df[key] = pd.Series([getattr(out, key) for out in outputs])
 
     return df

@@ -15,7 +15,6 @@ from pyons.models.rfid.pyradise import parse_antenna_rp, parse_ber_model
 @dataclass
 class Input:
     # Simulation timings and generators settings
-    simulation_id: int = 0
     max_vehicles_num: int = 100
     vehicle_interval_min: float = 0.4
     vehicle_interval_max: float = 0.6
@@ -91,7 +90,6 @@ class Input:
 
 @dataclass
 class Output:
-    simulation_id: int
     vehicle_read_rate: float
     epc_read_rate: float
     tid_read_rate: float
@@ -185,7 +183,6 @@ def build_model_descriptor(inp: Input) -> ModelDescriptor:
 
 def build_output(
         journal: Journal,
-        sim_id: int = 0,
         elapsed_time: float = 0.0
 ) -> Output:
     epc_rate, tid_rate = journal.get_tag_read_rate()
@@ -193,7 +190,6 @@ def build_output(
         journal.get_avg_vehicles_and_tags_num_per_round()
 
     return Output(
-        simulation_id=sim_id,
         vehicle_read_rate=journal.get_vehicle_read_rate(),
         epc_read_rate=epc_rate,
         tid_read_rate=tid_rate,
@@ -209,7 +205,6 @@ def build_output(
 
 def pprint_output(out: Output):
     rows = [
-        ("SIMULATION ID", out.simulation_id),
         ("VEHICLE READ RATE", out.vehicle_read_rate),
         ("TAG EPC READ RATE", out.epc_read_rate),
         ("TAG TID READ RATE", out.tid_read_rate),
