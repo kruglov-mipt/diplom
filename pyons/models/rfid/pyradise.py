@@ -168,17 +168,25 @@ def reflection_constant(*, grazing_angle, polarization, permittivity, conductivi
 # @vectorize
 def reflection(*, grazing_angle, polarization, permittivity, conductivity, wavelen, **kwargs):
     """
-    Computes reflection coefficient from conducting surface with defined grazing angle and supported relative
-    permittivity and conductivity of the surface. In order to set type of wave polarization, polarization
-    parameter is specified. For parallel to surface polarized wave polarization should set to 1, for perpendicular -
-    to 0; for circular - to 0.5. For different type of elliptic polarization use other value in the range of 0..1
+    Computes reflection coefficient from conducting surface with defined
+    grazing angle and supported relative permittivity and conductivity of the
+    surface. In order to set type of wave polarization, polarization parameter
+    is specified.
 
-    :param grazing_angle: an angle between normal to surface and wave vector
-    :param polarization: determine the type of polarization of the grazing wave
-    :param permittivity: the relative_permittivity of two media divided by the surface
-    :param conductivity: the conductivity of the surface
-    :param wavelen: the wave length of the grazing wave
-    :return: the reflection coefficient for specified parameters and the given grazing angle
+    For parallel to surface polarized wave polarization should set to 1,
+    for perpendicular - to 0; for circular - to 0.5.  For different type of
+    elliptic polarization use other value in the range of 0..1
+
+    Args:
+        grazing_angle (float): angle between normal to surface and wave vector
+        polarization (float): type of polarization
+        permittivity (float): the relative_permittivity of two media divided by
+            the surface
+        conductivity (float): the conductivity of the surface
+        wavelen (float): the wave length of the grazing wave
+
+    Returns:
+        r: the reflection coefficient (complex value)
     """
     s = np.sin(grazing_angle)
 
@@ -186,24 +194,30 @@ def reflection(*, grazing_angle, polarization, permittivity, conductivity, wavel
         return float('nan')
 
     if polarization != 0:
-        c_parallel = _reflection_c_parallel(grazing_angle, permittivity, conductivity, wavelen)
+        c_parallel = _reflection_c_parallel(
+            grazing_angle, permittivity, conductivity, wavelen)
         reflection_parallel = (s - c_parallel) / (s + c_parallel)
     else:
         reflection_parallel = 0.j
 
     if polarization != 1:
-        c_perpendicular = _reflection_c_perpendicular(grazing_angle, permittivity, conductivity, wavelen)
+        c_perpendicular = _reflection_c_perpendicular(
+            grazing_angle, permittivity, conductivity, wavelen)
         reflection_perpendicular = (s - c_perpendicular) / (s + c_perpendicular)
     else:
         reflection_perpendicular = 0.j
 
-    return polarization * reflection_parallel + (1 - polarization) * reflection_perpendicular
+    return polarization * reflection_parallel + \
+        (1 - polarization) * reflection_perpendicular
 
 
 # @vectorize
-def free_space_path_loss_2d(*, distance, tx_rp, rx_rp, tx_angle, rx_angle, tx_height, rx_height, wavelen, **kwargs):
+def free_space_path_loss_2d(
+        *, distance, tx_rp, rx_rp, tx_angle, rx_angle, tx_height, rx_height,
+        wavelen, **kwargs):
     """
-    Computes free space signal attenuation between the transmitter and the receiver in linear scale.
+    Computes free space signal attenuation between the transmitter and the
+    receiver in linear scale.
 
     :param distance: the distance between transmitter and receiver
     :param rx_angle: a mount angle of transmitter antenna
@@ -221,21 +235,32 @@ def free_space_path_loss_2d(*, distance, tx_rp, rx_rp, tx_angle, rx_angle, tx_he
     alpha0 = np.arctan(distance / delta_height)
 
     # Attenuation caused by radiation pattern
-    g0 = (tx_rp(azimuth=alpha0 - tx_angle, tilt=np.pi/2, wavelen=wavelen, **kwargs) *
-          rx_rp(azimuth=alpha0 - rx_angle, tilt=np.pi/2, wavelen=wavelen, **kwargs))
+    g0 = (tx_rp(azimuth=alpha0 - tx_angle,
+                tilt=np.pi/2,
+                wavelen=wavelen,
+                **kwargs) *
+          rx_rp(azimuth=alpha0 - rx_angle,
+                tilt=np.pi/2,
+                wavelen=wavelen,
+                **kwargs))
 
     k = wavelen / (4 * np.pi)
     return (k * g0 / d0) ** 2
 
 
-def two_ray_path_loss(*, distance, time, speed, ground_reflection, tx_rp, rx_rp, tx_angle, rx_angle, tx_height,
-                      rx_height, wavelen, **kwargs):
+def two_ray_path_loss(
+        *, distance, time, speed, ground_reflection,
+        tx_rp, rx_rp, tx_angle, rx_angle, tx_height, rx_height,
+        wavelen, **kwargs):
     """
-    Computes free space signal attenuation between the transmitter and the receiver in linear scale.
+    Computes free space signal attenuation between the transmitter and the
+    receiver in linear scale.
+
     :param distance: the distance between transmitter and receiver
     :param time: current time
     :param speed: relative speed of the receiver
-    :param ground_reflection: a function to compute a complex-valued reflection coefficient
+    :param ground_reflection: a function to compute a
+        complex-valued reflection coefficient
     :param tx_rp: a radiation pattern of the transmitter
     :param rx_rp: a radiation pattern of the receiver
     :param rx_angle: a mount angle of transmitter antenna
@@ -254,18 +279,23 @@ def two_ray_path_loss(*, distance, time, speed, ground_reflection, tx_rp, rx_rp,
     alpha1 = np.arctan(distance / sigma_height)
 
     # Attenuation caused by radiation pattern
-    g0 = (tx_rp(azimuth=alpha0 - tx_angle, tilt=np.pi/2, wavelen=wavelen, **kwargs) *
-          rx_rp(azimuth=alpha0 - rx_angle, tilt=np.pi/2, wavelen=wavelen, **kwargs))
+    g0 = (tx_rp(azimuth=alpha0 - tx_angle,
+                tilt=np.pi/2, wavelen=wavelen, **kwargs) *
+          rx_rp(azimuth=alpha0 - rx_angle,
+                tilt=np.pi/2, wavelen=wavelen, **kwargs))
 
-    g1 = (tx_rp(azimuth=alpha1 - tx_angle, tilt=np.pi/2, wavelen=wavelen, **kwargs) *
-          rx_rp(azimuth=alpha1 - rx_angle, tilt=np.pi/2, wavelen=wavelen, **kwargs))
+    g1 = (tx_rp(azimuth=alpha1 - tx_angle,
+                tilt=np.pi/2, wavelen=wavelen, **kwargs) *
+          rx_rp(azimuth=alpha1 - rx_angle,
+                tilt=np.pi/2, wavelen=wavelen, **kwargs))
 
     # Attenuation due to reflections (reflection coefficient) computation
     r1 = ground_reflection(grazing_angle=alpha1, wavelen=wavelen, **kwargs)
 
     k = 2 * np.pi / wavelen
-    return (0.5 / k) ** 2 * np.absolute(   g0/d0*np.exp(-1j*k*(d0 + speed*time*np.sin(alpha0))) +
-                                        g1*r1/d1*np.exp(-1j*k*(d1 + speed*time*np.sin(alpha1)))) ** 2
+    return (0.5 / k) ** 2 * \
+        np.abs(   g0/d0*np.exp(-1j*k*(d0 + speed*time*np.sin(alpha0))) +
+               g1*r1/d1*np.exp(-1j*k*(d1 + speed*time*np.sin(alpha1)))) ** 2
 
 
 def two_ray_path_loss_3d(*, time, ground_reflection, wavelen,
@@ -337,6 +367,58 @@ def two_ray_path_loss_3d(*, time, ground_reflection, wavelen,
                                     r1*g1/d1*np.exp(-1j*k*(d1 - time * velocity_pr_1)))**2
 
 
+def free_space_path_loss_3d(
+        *, time, wavelen,
+        tx_pos, tx_dir_theta, tx_dir_phi, tx_velocity, tx_rp,
+        rx_pos, rx_dir_theta, rx_dir_phi, rx_velocity, rx_rp,
+        **kwargs):
+    """
+    Computes free space signal attenuation between the transmitter and the
+    receiver in linear scale.
+
+    :param wavelen: a wavelen of signal carrier
+    :param time: Time passed from the start of reception
+    :param tx_velocity: the velocity of the transmitter
+    :param tx_dir_phi: the vector pointed the direction with tilt
+        angle equals 0 of the transmitter antenna.
+    :param tx_dir_theta: the vector pointed the direction with azimuth
+        angle equals 0 of the transmitter antenna.
+    :param tx_pos: a current position of the transmitter.
+    :param tx_rp: a radiation pattern of the transmitter
+    :param rx_velocity: the velocity of the receiver
+    :param rx_dir_phi: the vector pointed the direction with tilt angle
+        equals 0 of the transmitter antenna.
+    :param rx_dir_theta: the vector pointed the direction with azimuth angle
+        equals 0 of the transmitter antenna.
+    :param rx_pos: a current position of the receiver
+    :param rx_rp: a radiation pattern of the receiver
+
+    :return: free space path loss in linear scale
+    """
+    d_vector = rx_pos - tx_pos
+    d = la.norm(d_vector)
+    d_vector_tx_n = d_vector / d
+    d_vector_rx_n = -d_vector_tx_n
+
+    # Azimuth and tilt angle computation for computation of attenuation
+    # caused by deflection from polar direction
+    tx_azimuth = np.arccos(np.dot(d_vector_tx_n, tx_dir_theta))
+    rx_azimuth = np.arccos(np.dot(d_vector_rx_n, rx_dir_theta))
+
+    tx_tilt = np.arccos(np.dot(d_vector_tx_n, tx_dir_phi))
+    rx_tilt = np.arccos(np.dot(d_vector_rx_n, rx_dir_phi))
+
+    relative_velocity = rx_velocity - tx_velocity
+    velocity_pr = np.dot(d_vector_tx_n, relative_velocity)
+
+    # Attenuation caused by radiation pattern
+    g0 = (tx_rp(azimuth=tx_azimuth, tilt=tx_tilt, wavelen=wavelen, **kwargs) *
+          rx_rp(azimuth=rx_azimuth, tilt=rx_tilt, wavelen=wavelen, **kwargs))
+
+    k = 2 * np.pi / wavelen
+    return (0.5/k)**2 * np.abs(g0/d*np.exp(-1j*k*(d - time * velocity_pr)))**2
+
+
 def two_ray_path_loss_2d(*, distance, start_position, ground_reflection, tx_rp, rx_rp, tx_angle, rx_angle, tx_height,
                          rx_height, wavelen, **kwargs):
     # Ray geometry computation
@@ -389,15 +471,18 @@ def sync_angle(*, snr, preamble_duration=9.3e-6, bandwidth=1.2e6, **kwargs):
 
 
 # noinspection PyUnusedLocal
-def snr_extended(*, snr, sync_phi=0, miller=1, symbol_duration=1.25e-6, bandwidth=1.2e6, **kwargs):
+def snr_extended(*, snr, sync_phi=0, miller=1, symbol_duration=1.25e-6,
+                 bandwidth=1.2e6, **kwargs):
     """
     Computes the extended SNR for BER computation.
+
     :param snr: an SNR of the received signal
     :param sync_phi: the de-synchronization
     :param miller: the order of Miller encoding
     :param symbol_duration: the symbol duration in seconds
     :param bandwidth: the bandwidth of the signal in herzs
     :param kwargs:
+
     :return: the extended SNR for BER computation
     """
     return miller * snr * symbol_duration * bandwidth * np.cos(sync_phi) ** 2
@@ -406,8 +491,11 @@ def snr_extended(*, snr, sync_phi=0, miller=1, symbol_duration=1.25e-6, bandwidt
 # noinspection PyUnusedLocal
 def ber_over_awgn(*, snr, **kwargs):
     """
-    Computes BER in an additive white gaussian noise (AWGN) channel for Binary Phase Shift Keying (BPSK)
+    Computes BER in an additive white gaussian noise (AWGN) channel for
+    Binary Phase Shift Keying (BPSK)
+
     :param snr: the extended SNR
+
     :return:
     """
 
@@ -421,9 +509,12 @@ def ber_over_awgn(*, snr, **kwargs):
 # noinspection PyUnusedLocal
 def ber_over_rayleigh(*, snr, **kwargs):
     """
-    Computes BER in the channel with Rayleigh fading for Binary Phase Shift Keying (BPSK)
+    Computes BER in the channel with Rayleigh fading for Binary Phase
+    Shift Keying (BPSK)
+
     :param snr:
     :param kwargs:
+
     :return:
     """
     t = (1 + 2 / snr) ** 0.5
