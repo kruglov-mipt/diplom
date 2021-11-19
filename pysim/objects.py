@@ -1527,7 +1527,8 @@ class _TagPowerRecord:
             return self._tag_tx_power
 
     @tag_tx_power.setter
-    def tag_tx_power(self, value): self._tag_tx_power = value
+    def tag_tx_power(self, value):
+        self._tag_tx_power = value
 
     @property
     def reader_rx_power(self):
@@ -1537,7 +1538,8 @@ class _TagPowerRecord:
             return self._reader_rx_power
 
     @reader_rx_power.setter
-    def reader_rx_power(self, value): self._reader_rx_power = value
+    def reader_rx_power(self, value):
+        self._reader_rx_power = value
 
     @property
     def reader_tx_power(self):

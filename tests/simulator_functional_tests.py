@@ -37,18 +37,18 @@ class EchoModel(ut.TestCase):
 
     @staticmethod
     def run_echo_model(kernel, interval):
-        kernel.print("MODEL STARTED")
+        kernel.print_line("MODEL STARTED")
         kernel.call(EchoModel.send_next_message, interval)
 
     @staticmethod
     def receive_request(kernel, message):
-        kernel.print("--> server received '{}'".format(message))
+        kernel.print_line("--> server received '{}'".format(message))
         kernel.context.num_requests_received += 1
         kernel.call(EchoModel.receive_response, message)
 
     @staticmethod
     def receive_response(kernel, message):
-        kernel.print("<-- client received '{}'".format(message))
+        kernel.print_line("<-- client received '{}'".format(message))
         kernel.context.num_responses_received += 1
 
     @staticmethod
