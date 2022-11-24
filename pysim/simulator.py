@@ -184,7 +184,7 @@ class Kernel:
             t, event_id, item = self._queue.pop()
             self._sim_time = t
             f, args, kwargs = item
-            f(self, *args, **kwargs)
+            f(self, *args, **kwargs)  # self = kernel, always the first arg!
             self._num_events_served += 1
 
         self._state = self.State.STOPPED
