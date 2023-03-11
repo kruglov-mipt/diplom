@@ -250,6 +250,7 @@ class MemoryBank(Enum):
 class CommandCode(Enum):
     QUERY = ('1000', 'Query')
     QUERY_REP = ('00', 'QueryRep')
+    QUERY_ADJUST = ('1001', 'QueryAdjust')
     ACK = ('01', 'ACK')
     REQ_RN = ('11000001', 'Req_RN')
     READ = ('11000010', 'Read')
@@ -311,6 +312,7 @@ class StdParams:
     default_rn = 0x0000
     default_crc5 = 0x00
     default_crc16 = 0x0000
+    upDn = 0x000
 
 
 stdParams = StdParams()
@@ -423,6 +425,19 @@ class QueryRep(Command):
 
     def __str__(self):
         return "{o.code}{{{o.session}}}".format(o=self)
+    
+
+class QueryAdjust(Command):
+    def __init__(self, session=None, upDn=None):
+        super().__init__(CommandCode.QUERY_ADJUST)
+        self.session = session if session is not None else stdParams.session
+        self.upDn = upDn if upDn is not None else stdParams.upDn
+
+    def encode(self):
+        return self.code.code + self.session.code + encode_int(self.upDn, 16)
+    
+    def __str__(self):
+        return "{o.code}{{{o.session},upDn(0x{o.upDn:02X})}}".format(o=self)
 
 
 class Ack(Command):
