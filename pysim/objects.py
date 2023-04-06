@@ -289,10 +289,52 @@ class _ReaderQREP(_ReaderState):
         raise RuntimeError("unexpected AckReply in QREP state")
 
     def handle_reqrn_reply(self, reader, frame):
-        raise RuntimeError("unexpected ReqRNReply in QUERY state")
+        raise RuntimeError("unexpected ReqRNReply in QREP state")
 
     def handle_read_reply(self, reader, frame):
-        raise RuntimeError("unexpected ReadReply in QUERY state")
+        raise RuntimeError("unexpected ReadReply in QREP state")
+    
+
+# ----------------------------------------------------------------------------
+# Reader state: QADJUST
+# ----------------------------------------------------------------------------
+class _ReaderQADJUST(_ReaderState):
+    def __init__(self): super().__init__('QADJUST')
+
+    def get_timeout(self, reader):
+        t_cmd = std.query_adjust_duration(reader.tari, reader.rtcal, reader.trcal,
+                                       reader.delim, reader.session, reader.upDn)
+        t1 = std.link_t1_max(reader.rtcal, reader.trcal, reader.dr,
+                             reader.temp)
+        t3 = std.link_t3()
+        return t_cmd + t1 + t3
+
+    def enter(self, reader):
+        reader.last_rn = None
+        cmd = std.QueryAdjust(reader.session, reader.upDn)
+        return std.ReaderFrame(reader.preamble, cmd)
+
+    def handle_turn_on(self, reader): return None
+
+    def handle_turn_off(self, reader):
+        return reader.set_state(Reader.State.OFF)
+
+    def handle_timeout(self, reader):
+        slot = reader.next_slot()
+        return reader.set_state(slot.first_state)
+
+    def handle_query_reply(self, reader, frame):
+        reader.last_rn = frame.reply.rn
+        return reader.set_state(Reader.State.ACK)
+
+    def handle_ack_reply(self, reader, frame):
+        raise RuntimeError("unexpected AckReply in QADJUST state")
+
+    def handle_reqrn_reply(self, reader, frame):
+        raise RuntimeError("unexpected ReqRNReply in QADJUST state")
+
+    def handle_read_reply(self, reader, frame):
+        raise RuntimeError("unexpected ReadReply in QADJUST state")
 
 
 # ----------------------------------------------------------------------------
@@ -382,7 +424,7 @@ class _ReaderREQRN(_ReaderState):
 
 
 # ----------------------------------------------------------------------------
-# Reader state: ReqRN
+# Reader state: Read
 # ----------------------------------------------------------------------------
 class _ReaderREAD(_ReaderState):
     def __init__(self):
@@ -539,6 +581,7 @@ class Reader:
         OFF = _ReaderOFF()
         QUERY = _ReaderQUERY()
         QREP = _ReaderQREP()
+        QADJUST = _ReaderQADJUST()
         ACK = _ReaderACK()
         REQRN = _ReaderREQRN()
         READ = _ReaderREAD()
@@ -587,6 +630,7 @@ class Reader:
 
     # Round settings
     q = 2
+    upDn = std.UpDn.DECREASE
     tag_encoding = None
     trext = False
     dr = std.DivideRatio.DR_8
@@ -832,6 +876,7 @@ class Tag:
         # Internal registers and flags
         self._state = Tag.State.OFF
         self._slot_counter = 0
+        self._q = 0
         self._rn = 0
         self._powered_on_time = None
         self._powered_off_time = 0.0
@@ -922,6 +967,10 @@ class Tag:
         return self._slot_counter
 
     @property
+    def q(self):
+        return self._q
+
+    @property
     def rn(self):
         return self._rn
 
@@ -952,6 +1001,7 @@ class Tag:
         self._sl = False
         self._rn = 0x0000
         self._slot_counter = 0
+        self._q = 0
         self._active_session = None
         self._preamble = None
         if powered_on:
@@ -1037,6 +1087,7 @@ class Tag:
         self._active_session = command.session
         self._trext = command.trext
         self._encoding = command.m
+        self._q = command.q
         self._blf = std.get_blf(command.dr, preamble.trcal)
         self._slot_counter = np.random.randint(0, pow(2, command.q))
         self._preamble = std.create_tag_preamble(self.encoding, self.trext)
@@ -1046,6 +1097,32 @@ class Tag:
             return std.TagFrame(self._preamble, std.QueryReply(self._rn))
         else:
             self._set_state(Tag.State.ARBITRATE)
+            return None
+        
+    def process_query_adjust(self, frame):
+        assert isinstance(frame, std.ReaderFrame)
+        assert isinstance(frame.command, std.QueryAdjust)
+        qadjust = frame.command
+        if self.state is Tag.State.OFF:
+            return None
+
+        if qadjust.session is not self._active_session:
+            return None
+        
+        self._slot_counter = np.random.randint(0, pow(2, self._q + qadjust.upDn.eval()))
+
+        if self._slot_counter == 0 and self.state is Tag.State.ARBITRATE:
+            self._set_state(Tag.State.REPLY)
+            self._rn = np.random.randint(0, 0x10000)
+            return std.TagFrame(self._preamble, std.QueryReply(self._rn))
+        else:
+            if self.state in {Tag.State.ARBITRATE, Tag.State.REPLY}:
+                self._set_state(Tag.State.ARBITRATE)
+            elif self.state is not Tag.State.READY:
+                flag = self.sessions[self._active_session]
+                self.sessions[self._active_session] = flag.invert()
+                self._set_state(Tag.State.READY)
+
             return None
 
     def process_query_rep(self, frame):
@@ -1117,6 +1194,8 @@ class Tag:
             return self.process_query(frame)
         elif isinstance(cmd, std.QueryRep):
             return self.process_query_rep(frame)
+        elif isinstance(cmd, std.QueryAdjust):
+            return self.process_query_adjust(frame)
         elif isinstance(cmd, std.Ack):
             return self.process_ack(frame)
         elif isinstance(cmd, std.ReqRN):

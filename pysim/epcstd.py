@@ -28,6 +28,27 @@ class DivideRatio(Enum):
 
     def __str__(self):
         return self._string
+    
+
+class UpDn(Enum):
+    INCREASE = ('110', 1, '+1')
+    DECREASE = ('011', -1, '-1')
+    NO_CHANGE = (000, 0, '0')
+
+    def __init__(self, code, value, string):
+        self._code = code
+        self._value = value
+        self._string = string
+
+    @property
+    def code(self):
+        return self._code
+
+    def eval(self):
+        return self._value
+
+    def __str__(self):
+        return self._string
 
 
 class _Session(object):
@@ -312,7 +333,7 @@ class StdParams:
     default_rn = 0x0000
     default_crc5 = 0x00
     default_crc16 = 0x0000
-    upDn = 0x000
+    upDn = UpDn.NO_CHANGE
 
 
 stdParams = StdParams()
@@ -431,10 +452,10 @@ class QueryAdjust(Command):
     def __init__(self, session=None, upDn=None):
         super().__init__(CommandCode.QUERY_ADJUST)
         self.session = session if session is not None else stdParams.session
-        self.upDn = upDn if upDn is not None else stdParams.upDn
+        self.upDn = upDn if upDn is not None else stdParams.upDn.DECREASE
 
     def encode(self):
-        return self.code.code + self.session.code + encode_int(self.upDn, 16)
+        return self.code.code + self.session.code + self.upDn.code
     
     def __str__(self):
         return "{o.code}{{{o.session},upDn(0x{o.upDn:02X})}}".format(o=self)
@@ -852,6 +873,13 @@ def query_duration(tari=None, rtcal=None, trcal=None, delim=None, dr=None,
 def query_rep_duration(tari=None, rtcal=None, trcal=None, delim=None,
                        session=None):
     return reader_frame_duration(QueryRep(session), tari, rtcal, trcal,
+                                 delim)
+
+
+# noinspection PyTypeChecker
+def query_adjust_duration(tari=None, rtcal=None, trcal=None, delim=None,
+                       session=None, upDn=None):
+    return reader_frame_duration(QueryAdjust(session, upDn), tari, rtcal, trcal,
                                  delim)
 
 
