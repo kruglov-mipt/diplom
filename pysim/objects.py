@@ -661,6 +661,11 @@ class Reader:
         self._state = Reader.State.OFF
         self._slot_index = 0
 
+        # Chen parameters
+        self.s_idle = 0
+        self.s_single = 0
+        self.s_collision = 0
+
         # Antennas
         self._antennas = []
         self._antenna_index = 0
@@ -729,6 +734,10 @@ class Reader:
     @property
     def sync(self):
         return std.ReaderSync(self.tari, self.rtcal, self.delim)
+    
+    def find_optimal_q(self):
+        tags_to_read =  self.s_idle + 2.39 * self.s_collision * (pow(2, self.q) / self._slot_index)
+        self.q = round(np.log2(1.72 * tags_to_read))
 
     def receive(self, tag_frame):
         assert isinstance(tag_frame, std.TagFrame)
@@ -802,9 +811,17 @@ class Reader:
         if self._round:
             self._round.slot.on_finish(self)
             self._round.on_finish(self)
+            # Chen algorythm
+            self.s_collision = 0
+            self.s_idle = 0
+            self.s_single = 0
+            self._slot_index = 0
         self._round = None
 
     def next_slot(self):
+        self._slot_index += 1
+        if self._slot_index == round(pow(2, self.q) / 5):
+            self.find_optimal_q()
         if self._round is None:
             self._round = _ReaderRound(self, next(self._round_index))
             self._round.on_start(self)
@@ -1532,7 +1549,11 @@ class Transaction(object):
     def received_tag_frame(self, medium, time):
         # NOTE: if two or more tags reply, their reply is treated as collision
         #       no matter of SNR. Try to implement this.
-        if len(self.replies) != 1:
+        if len(self.replies) == 0:
+            self.reader.s_idle += 1
+            return None, None, None, None
+        if len(self.replies) > 1:
+            self.reader.s_collision += 1
             return None, None, None, None
         tag, frame = self.replies[0]
         snr = medium.estimate_reader_rx_snr(self.reader, tag, self.tags, time)
