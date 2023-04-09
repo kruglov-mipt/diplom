@@ -1,4 +1,5 @@
 from enum import Enum
+from strenum import StrEnum
 import random
 import collections
 import numpy as np
@@ -9,6 +10,12 @@ import numpy as np
 # Data Types
 #######################################################################
 #
+
+class SlotStates(StrEnum):
+    COLLISION = 'COLLISION'
+    IDLE = 'IDLE'
+    SINGLE = 'SINGLE'
+
 class DivideRatio(Enum):
     DR_8 = ('0', 8.0, '8')
     DR_643 = ('1', 64.0/3, '64/3')

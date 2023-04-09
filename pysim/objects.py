@@ -7,6 +7,7 @@ import pysim.epcstd as std
 import pysim.channel as chan
 
 
+
 #############################################################################
 # HELPERS
 #############################################################################
@@ -656,6 +657,10 @@ class Reader:
     antenna_switch_event_id = None
     antenna_switch_interval = None
 
+    # Q Algorythm parameters
+    c_constant = 0.0
+    q_new = 10.0
+
     def __init__(self, kernel=None):
         self.kernel = kernel
         self._state = Reader.State.OFF
@@ -729,6 +734,24 @@ class Reader:
     @property
     def sync(self):
         return std.ReaderSync(self.tari, self.rtcal, self.delim)
+    
+    def recalculate_q(self, slot_state):
+        if self.q > 10:
+            self.c_constant = 0.4
+        else:
+            self.c_constant = 0.2
+        if slot_state == std.SlotStates.COLLISION:
+            if self.q_new < 15:
+                self.q_new = self.q_new + self.c_constant
+        if slot_state == std.SlotStates.IDLE:
+            if self.q_new > 1.2:
+                self.q_new = self.q_new - self.c_constant
+                q = round(self.q_new - self.c_constant)
+                if q < self.q:
+                    self.q = q
+                    self.set_state(Reader.State.QADJUST)
+                else:
+                    self.set_state(Reader.State.QREP)
 
     def receive(self, tag_frame):
         assert isinstance(tag_frame, std.TagFrame)
@@ -1532,7 +1555,11 @@ class Transaction(object):
     def received_tag_frame(self, medium, time):
         # NOTE: if two or more tags reply, their reply is treated as collision
         #       no matter of SNR. Try to implement this.
-        if len(self.replies) != 1:
+        if len(self.replies) == 0:
+            self.reader.recalculate_q(std.SlotStates.IDLE)
+            return None, None, None, None
+        if len(self.replies) > 1:
+            self.reader.recalculate_q(std.SlotStates.COLLISION)
             return None, None, None, None
         tag, frame = self.replies[0]
         snr = medium.estimate_reader_rx_snr(self.reader, tag, self.tags, time)
