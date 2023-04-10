@@ -40,7 +40,7 @@ class DivideRatio(Enum):
 class UpDn(Enum):
     INCREASE = ('110', 1, '+1')
     DECREASE = ('011', -1, '-1')
-    NO_CHANGE = (000, 0, '0')
+    NO_CHANGE = ('000', 0, '0')
 
     def __init__(self, code, value, string):
         self._code = code
@@ -462,7 +462,7 @@ class QueryAdjust(Command):
         self.upDn = upDn if upDn is not None else stdParams.upDn.DECREASE
 
     def encode(self):
-        return self.code.code + self.session.code + self.upDn.code
+        return self.code.code + self.session.code
     
     def __str__(self):
         return "{o.code}{{{o.session},upDn(0x{o.upDn:02X})}}".format(o=self)

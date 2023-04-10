@@ -655,7 +655,7 @@ class Reader:
     temp = std.TempRange.NOMINAL
 
     # Round settings
-    q = 2
+    q = 6
     upDn = std.UpDn.DECREASE
     tag_encoding = None
     trext = False
@@ -684,7 +684,7 @@ class Reader:
 
     # Q Algorythm parameters
     c_constant = 0.0
-    q_new = 10.0
+    q_new = 6.0
 
     def __init__(self, kernel=None):
         self.kernel = kernel
@@ -766,15 +766,25 @@ class Reader:
         else:
             self.c_constant = 0.2
         if slot_state == std.SlotStates.COLLISION:
-            if self.q_new < 15:
+            if self.q_new < 10:
                 self.q_new = self.q_new + self.c_constant
+                q = round(self.q_new + self.c_constant)
+                if q > self.q:
+                    #self.q = q
+                    self.upDn = +1
+                    self.set_state(Reader.State.QADJUST)
+                    self._state.handle_query_adjust(self)
+                else:
+                    self.set_state(Reader.State.QREP)
         if slot_state == std.SlotStates.IDLE:
             if self.q_new > 1.2:
                 self.q_new = self.q_new - self.c_constant
                 q = round(self.q_new - self.c_constant)
                 if q < self.q:
-                    self.q = q
+                    #self.q = q
+                    self.upDn = -1
                     self.set_state(Reader.State.QADJUST)
+                    self._state.handle_query_adjust(self)
                 else:
                     self.set_state(Reader.State.QREP)
 
@@ -1157,7 +1167,7 @@ class Tag:
         if qadjust.session is not self._active_session:
             return None
         
-        self._slot_counter = np.random.randint(0, pow(2, self._q + qadjust.upDn.eval()))
+        self._slot_counter = np.random.randint(0, pow(2, self._q + qadjust.upDn))
 
         if self._slot_counter == 0 and self.state is Tag.State.ARBITRATE:
             self._set_state(Tag.State.REPLY)
@@ -1243,6 +1253,7 @@ class Tag:
         elif isinstance(cmd, std.QueryRep):
             return self.process_query_rep(frame)
         elif isinstance(cmd, std.QueryAdjust):
+            print(frame)
             return self.process_query_adjust(frame)
         elif isinstance(cmd, std.Ack):
             return self.process_ack(frame)
