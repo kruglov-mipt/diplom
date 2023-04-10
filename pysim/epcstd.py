@@ -458,7 +458,7 @@ class QueryAdjust(Command):
         return self.code.code + self.session.code + self.upDn.code
     
     def __str__(self):
-        return "{o.code}{{{o.session},upDn(0x{o.upDn:02X})}}".format(o=self)
+        return "{o.code}{{{o.session},upDn(0x{o.upDn.code})}}".format(o=self)
 
 
 class Ack(Command):
