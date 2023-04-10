@@ -138,6 +138,9 @@ class _ReaderState:
 
     def handle_timeout(self, reader):
         raise NotImplementedError
+    
+    def handle_query_adjust(self, reader):
+        raise NotImplementedError
 
     def handle_query_reply(self, reader, frame):
         raise NotImplementedError
@@ -185,6 +188,9 @@ class _ReaderOFF(_ReaderState):
 
     def handle_timeout(self, reader):
         return reader.turn_on()  # The default action on timeout is turn on
+
+    def handle_query_adjust(self, reader):
+        return None  # Can not send commands when off
 
     def handle_query_reply(self, reader, frame):
         return None  # Any reply ignored
@@ -239,6 +245,9 @@ class _ReaderQUERY(_ReaderState):
     def handle_timeout(self, reader):
         slot = reader.next_slot()
         return reader.set_state(slot.first_state)
+    
+    def handle_query_adjust(self, reader):
+        return reader.set_state(Reader.State.QADJUST)
 
     def handle_query_reply(self, reader, frame):
         reader.last_rn = frame.reply.rn
@@ -281,6 +290,9 @@ class _ReaderQREP(_ReaderState):
     def handle_timeout(self, reader):
         slot = reader.next_slot()
         return reader.set_state(slot.first_state)
+    
+    def handle_query_adjust(self, reader):
+        return reader.set_state(Reader.State.QADJUST)
 
     def handle_query_reply(self, reader, frame):
         reader.last_rn = frame.reply.rn
@@ -311,7 +323,6 @@ class _ReaderQADJUST(_ReaderState):
         return t_cmd + t1 + t3
 
     def enter(self, reader):
-        reader.last_rn = None
         cmd = std.QueryAdjust(reader.session, reader.upDn)
         return std.ReaderFrame(reader.preamble, cmd)
 
@@ -323,6 +334,10 @@ class _ReaderQADJUST(_ReaderState):
     def handle_timeout(self, reader):
         slot = reader.next_slot()
         return reader.set_state(slot.first_state)
+    
+    def handle_query_adjust(self, reader):
+        reader.q = reader.q + reader.upDn
+        return reader.set_state(Reader.State.QREP)
 
     def handle_query_reply(self, reader, frame):
         reader.last_rn = frame.reply.rn
@@ -364,6 +379,9 @@ class _ReaderACK(_ReaderState):
     def handle_timeout(self, reader):
         slot = reader.next_slot()
         return reader.set_state(slot.first_state)
+    
+    def handle_query_adjust(self, reader):
+        raise RuntimeError("unexpected QADJUST in ACK state")
 
     def handle_query_reply(self, reader, frame):
         raise RuntimeError("unexpected RN16 in ACK state")
@@ -409,6 +427,9 @@ class _ReaderREQRN(_ReaderState):
     def handle_timeout(self, reader):
         slot = reader.next_slot()
         return reader.set_state(slot.first_state)
+    
+    def handle_query_adjust(self, reader):
+        raise RuntimeError("unexpected QADJUST in ACK state")
 
     def handle_query_reply(self, reader, frame):
         raise RuntimeError("unexpected RN16 in REQRN state")
@@ -453,6 +474,9 @@ class _ReaderREAD(_ReaderState):
     def handle_timeout(self, reader):
         slot = reader.next_slot()
         return reader.set_state(slot.first_state)
+    
+    def handle_query_adjust(self, reader):
+        raise RuntimeError("unexpected QADJUST in ACK state")
 
     def handle_query_reply(self, reader, frame):
         raise RuntimeError("unexpected RN16 in READ state")
@@ -597,6 +621,7 @@ class Reader:
             children = {'enter', 'handle_turn_on', 'handle_turn_off',
                         'handle_query_reply', 'handle_ack_reply',
                         'handle_timeout', 'handle_reqrn_reply',
+                        'handle_query_adjust',
                         'handle_read_reply', 'get_timeout'}
             if item in children:
                 return getattr(self.__obj__, item)
