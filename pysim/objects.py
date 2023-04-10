@@ -336,7 +336,7 @@ class _ReaderQADJUST(_ReaderState):
         return reader.set_state(slot.first_state)
     
     def handle_query_adjust(self, reader):
-        reader.q = reader.q + reader.upDn
+        reader.q = reader.q + reader.upDn.eval()
         return reader.set_state(Reader.State.QREP)
 
     def handle_query_reply(self, reader, frame):
@@ -429,7 +429,7 @@ class _ReaderREQRN(_ReaderState):
         return reader.set_state(slot.first_state)
     
     def handle_query_adjust(self, reader):
-        raise RuntimeError("unexpected QADJUST in ACK state")
+        raise RuntimeError("unexpected QADJUST in REQRN state")
 
     def handle_query_reply(self, reader, frame):
         raise RuntimeError("unexpected RN16 in REQRN state")
@@ -476,7 +476,7 @@ class _ReaderREAD(_ReaderState):
         return reader.set_state(slot.first_state)
     
     def handle_query_adjust(self, reader):
-        raise RuntimeError("unexpected QADJUST in ACK state")
+        raise RuntimeError("unexpected QADJUST in READ state")
 
     def handle_query_reply(self, reader, frame):
         raise RuntimeError("unexpected RN16 in READ state")
