@@ -247,7 +247,7 @@ class _ReaderQUERY(_ReaderState):
         return reader.set_state(slot.first_state)
     
     def handle_query_adjust(self, reader):
-        return reader.set_state(Reader.State.QADJUST)
+        raise RuntimeError("unexpected QADJUST in QUERY state")
 
     def handle_query_reply(self, reader, frame):
         reader.last_rn = frame.reply.rn
@@ -292,7 +292,7 @@ class _ReaderQREP(_ReaderState):
         return reader.set_state(slot.first_state)
     
     def handle_query_adjust(self, reader):
-        return reader.set_state(Reader.State.QADJUST)
+        raise RuntimeError("unexpected QADJUST in QREP state")
 
     def handle_query_reply(self, reader, frame):
         reader.last_rn = frame.reply.rn
@@ -337,7 +337,6 @@ class _ReaderQADJUST(_ReaderState):
     
     def handle_query_adjust(self, reader):
         reader.q = reader.q + reader.upDn.eval()
-        return reader.set_state(Reader.State.QREP)
 
     def handle_query_reply(self, reader, frame):
         reader.last_rn = frame.reply.rn
@@ -564,9 +563,42 @@ class _ReaderSlot:
 class _ReaderRound:
     def __init__(self, reader, index):
         self._index = index
-
         def slots_gen():
             yield _ReaderSlot(self, 0, Reader.State.QUERY)
+            for i in range(1, round(pow(2, reader.q))):
+                yield _ReaderSlot(self, i, Reader.State.QREP)
+        self._reader = reader
+        self._slots = slots_gen()
+        self._slot = None
+
+    @property
+    def index(self):
+        return self._index
+
+    @property
+    def slot(self):
+        return self._slot
+
+    def next_slot(self):
+        if self._slot is not None:
+            self._slot.on_finish(self._reader)
+        self._slot = next(self._slots)
+        self._slot.on_start(self._reader)
+        return self._slot
+
+    def on_start(self, reader):
+        reader.kernel.logger.debug("ROUND #{} STARTED".format(self.index))
+        reader.round_start_listeners.call(self.index)
+
+    def on_finish(self, reader):
+        reader.round_finish_listeners.call(self.index)
+
+
+class _AdjustedReaderRound:
+    def __init__(self, reader, index):
+        self._index = index
+        def slots_gen():
+            yield _ReaderSlot(self, 0, Reader.State.QADJUST)
             for i in range(1, round(pow(2, reader.q))):
                 yield _ReaderSlot(self, i, Reader.State.QREP)
 
@@ -595,7 +627,6 @@ class _ReaderRound:
 
     def on_finish(self, reader):
         reader.round_finish_listeners.call(self.index)
-
 
 # ===========================================================================
 # Reader class
@@ -656,7 +687,7 @@ class Reader:
 
     # Round settings
     q = 6
-    upDn = std.UpDn.DECREASE
+    upDn = std.UpDn.NO_CHANGE
     tag_encoding = None
     trext = False
     dr = std.DivideRatio.DR_8
@@ -684,7 +715,7 @@ class Reader:
 
     # Q Algorythm parameters
     c_constant = 0.0
-    q_new = 6.0
+    q_new = 4.0
 
     def __init__(self, kernel=None):
         self.kernel = kernel
@@ -762,32 +793,26 @@ class Reader:
     
     def recalculate_q(self, slot_state):
         if self.q > 10:
-            self.c_constant = 0.4
+            self.c_constant = 0.01
         else:
-            self.c_constant = 0.2
+            self.c_constant = 0.05
         if slot_state == std.SlotStates.COLLISION:
             if self.q_new < 10:
-                self.q_new = self.q_new + self.c_constant
-                q = round(self.q_new + self.c_constant)
+                self.q_new = self.q_new + 0.5
+                q = round(self.q_new)
                 if q > self.q:
-                    #self.q = q
-                    self.upDn = +1
+                    self.upDn = std.UpDn.INCREASE
                     self.set_state(Reader.State.QADJUST)
                     self._state.handle_query_adjust(self)
-                else:
-                    self.set_state(Reader.State.QREP)
         if slot_state == std.SlotStates.IDLE:
-            if self.q_new > 1.2:
-                self.q_new = self.q_new - self.c_constant
-                q = round(self.q_new - self.c_constant)
+            if self.q_new > 1:
+                self.q_new = self.q_new - 0.01
+                q = round(self.q_new)
                 if q < self.q:
-                    #self.q = q
-                    self.upDn = -1
+                    self.upDn = std.UpDn.DECREASE
                     self.set_state(Reader.State.QADJUST)
                     self._state.handle_query_adjust(self)
-                else:
-                    self.set_state(Reader.State.QREP)
-
+                    
     def receive(self, tag_frame):
         assert isinstance(tag_frame, std.TagFrame)
         reply = tag_frame.reply
@@ -863,19 +888,36 @@ class Reader:
         self._round = None
 
     def next_slot(self):
-        if self._round is None:
-            self._round = _ReaderRound(self, next(self._round_index))
-            self._round.on_start(self)
-            slot = self._round.next_slot()
-        else:
-            try:
+        if self.state == Reader.State.QADJUST:
+            #   Закончить старый раунд и начать настроенный раунд
+            self.stop_round()
+            if self._round is None:
+                self._round = _AdjustedReaderRound(self, next(self._round_index))
+                self._round.on_start(self)
                 slot = self._round.next_slot()
-            except StopIteration:
-                self._round.on_finish(self)
+            else:
+                try:
+                    slot = self._round.next_slot()
+                except StopIteration:
+                    self._round.on_finish(self)
+                    self._round = _AdjustedReaderRound(self, next(self._round_index))
+                    self._round.on_start(self)
+                    slot = self._round.next_slot()
+            return slot
+        else:
+            if self._round is None:
                 self._round = _ReaderRound(self, next(self._round_index))
                 self._round.on_start(self)
                 slot = self._round.next_slot()
-        return slot
+            else:
+                try:
+                    slot = self._round.next_slot()
+                except StopIteration:
+                    self._round.on_finish(self)
+                    self._round = _ReaderRound(self, next(self._round_index))
+                    self._round.on_start(self)
+                    slot = self._round.next_slot()
+            return slot
 
     @property
     def round_start_listeners(self):
@@ -1161,14 +1203,22 @@ class Tag:
         assert isinstance(frame, std.ReaderFrame)
         assert isinstance(frame.command, std.QueryAdjust)
         qadjust = frame.command
+        self._active_session = qadjust.session
+
         if self.state is Tag.State.OFF:
             return None
-
+        
         if qadjust.session is not self._active_session:
             return None
-        
-        self._slot_counter = np.random.randint(0, pow(2, self._q + qadjust.upDn))
 
+        brand_new_q = 0
+        if self._q > 1:
+            brand_new_q = self._q + qadjust.upDn.eval()
+        else:
+            brand_new_q = self._q
+
+        self._slot_counter = np.random.randint(0, pow(2, brand_new_q))
+    
         if self._slot_counter == 0 and self.state is Tag.State.ARBITRATE:
             self._set_state(Tag.State.REPLY)
             self._rn = np.random.randint(0, 0x10000)
@@ -1192,7 +1242,6 @@ class Tag:
 
         if qrep.session is not self._active_session:
             return None
-
         self._slot_counter -= 1
         if self._slot_counter == 0 and self.state is Tag.State.ARBITRATE:
             self._set_state(Tag.State.REPLY)
@@ -1253,7 +1302,6 @@ class Tag:
         elif isinstance(cmd, std.QueryRep):
             return self.process_query_rep(frame)
         elif isinstance(cmd, std.QueryAdjust):
-            print(frame)
             return self.process_query_adjust(frame)
         elif isinstance(cmd, std.Ack):
             return self.process_ack(frame)
