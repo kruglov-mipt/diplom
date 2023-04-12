@@ -890,7 +890,7 @@ class Reader:
     def next_slot(self):
         if self.state == Reader.State.QADJUST:
             #   Закончить старый раунд и начать настроенный раунд
-            self.stop_round()
+            self._round.on_finish(self)
             if self._round is None:
                 self._round = _AdjustedReaderRound(self, next(self._round_index))
                 self._round.on_start(self)
