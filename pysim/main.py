@@ -200,7 +200,7 @@ def setup_default_parameters(num_tags):
 
     # Generator settings
     modelParams.generation_interval = (
-        lambda: 0.5 + np.random.uniform(-0.1, 0.1),)
+        lambda: 0.1 + np.random.uniform(-0.1, 0.1),)
 
     # Statistics
     modelParams.collect_power_statistics = False

@@ -566,42 +566,9 @@ class _ReaderRound:
         def slots_gen():
             yield _ReaderSlot(self, 0, Reader.State.QUERY)
             for i in range(1, round(pow(2, reader.q))):
+                if reader.state == Reader.State.QADJUST:
+                    yield _ReaderSlot(self, i, Reader.State.QADJUST)
                 yield _ReaderSlot(self, i, Reader.State.QREP)
-        self._reader = reader
-        self._slots = slots_gen()
-        self._slot = None
-
-    @property
-    def index(self):
-        return self._index
-
-    @property
-    def slot(self):
-        return self._slot
-
-    def next_slot(self):
-        if self._slot is not None:
-            self._slot.on_finish(self._reader)
-        self._slot = next(self._slots)
-        self._slot.on_start(self._reader)
-        return self._slot
-
-    def on_start(self, reader):
-        reader.kernel.logger.debug("ROUND #{} STARTED".format(self.index))
-        reader.round_start_listeners.call(self.index)
-
-    def on_finish(self, reader):
-        reader.round_finish_listeners.call(self.index)
-
-
-class _AdjustedReaderRound:
-    def __init__(self, reader, index):
-        self._index = index
-        def slots_gen():
-            yield _ReaderSlot(self, 0, Reader.State.QADJUST)
-            for i in range(1, round(pow(2, reader.q))):
-                yield _ReaderSlot(self, i, Reader.State.QREP)
-
         self._reader = reader
         self._slots = slots_gen()
         self._slot = None
@@ -686,7 +653,7 @@ class Reader:
     temp = std.TempRange.NOMINAL
 
     # Round settings
-    q = 6
+    q = 4
     upDn = std.UpDn.NO_CHANGE
     tag_encoding = None
     trext = False
@@ -715,7 +682,7 @@ class Reader:
 
     # Q Algorythm parameters
     c_constant = 0.0
-    q_new = 4.0
+    q_new = 10.0
 
     def __init__(self, kernel=None):
         self.kernel = kernel
@@ -792,21 +759,17 @@ class Reader:
         return std.ReaderSync(self.tari, self.rtcal, self.delim)
     
     def recalculate_q(self, slot_state):
-        if self.q > 10:
-            self.c_constant = 0.01
-        else:
-            self.c_constant = 0.05
         if slot_state == std.SlotStates.COLLISION:
             if self.q_new < 10:
-                self.q_new = self.q_new + 0.5
+                self.q_new = self.q_new + 0.3
                 q = round(self.q_new)
                 if q > self.q:
                     self.upDn = std.UpDn.INCREASE
                     self.set_state(Reader.State.QADJUST)
                     self._state.handle_query_adjust(self)
         if slot_state == std.SlotStates.IDLE:
-            if self.q_new > 1:
-                self.q_new = self.q_new - 0.01
+            if self.q_new > 2:
+                self.q_new = self.q_new - 0.2
                 q = round(self.q_new)
                 if q < self.q:
                     self.upDn = std.UpDn.DECREASE
@@ -888,23 +851,23 @@ class Reader:
         self._round = None
 
     def next_slot(self):
-        if self.state == Reader.State.QADJUST:
-            #   Закончить старый раунд и начать настроенный раунд
-            self._round.on_finish(self)
-            if self._round is None:
-                self._round = _AdjustedReaderRound(self, next(self._round_index))
-                self._round.on_start(self)
-                slot = self._round.next_slot()
-            else:
-                try:
-                    slot = self._round.next_slot()
-                except StopIteration:
-                    self._round.on_finish(self)
-                    self._round = _AdjustedReaderRound(self, next(self._round_index))
-                    self._round.on_start(self)
-                    slot = self._round.next_slot()
-            return slot
-        else:
+        # if self.state == Reader.State.QADJUST:
+        #     #   Закончить старый раунд и начать настроенный раунд
+        #     self._round.on_finish(self)
+        #     if self._round is None:
+        #         self._round = _AdjustedReaderRound(self, next(self._round_index))
+        #         self._round.on_start(self)
+        #         slot = self._round.next_slot()
+        #     else:
+        #         try:
+        #             slot = self._round.next_slot()
+        #         except StopIteration:
+        #             self._round.on_finish(self)
+        #             self._round = _AdjustedReaderRound(self, next(self._round_index))
+        #             self._round.on_start(self)
+        #             slot = self._round.next_slot()
+        #     return slot
+        # else:
             if self._round is None:
                 self._round = _ReaderRound(self, next(self._round_index))
                 self._round.on_start(self)
