@@ -246,7 +246,7 @@ class _ReaderQUERY(_ReaderState):
         return reader.set_state(slot.first_state)
     
     def handle_query_adjust(self, reader):
-        return reader.set_state(Reader.State.QADJUST)
+        raise RuntimeError("unexpected QADJUST in QUERY state")
 
     def handle_query_reply(self, reader, frame):
         reader.last_rn = frame.reply.rn
@@ -291,7 +291,7 @@ class _ReaderQREP(_ReaderState):
         return reader.set_state(slot.first_state)
     
     def handle_query_adjust(self, reader):
-        return reader.set_state(Reader.State.QADJUST)
+        raise RuntimeError("unexpected QADJUST in QREP state")
 
     def handle_query_reply(self, reader, frame):
         reader.last_rn = frame.reply.rn
@@ -336,7 +336,7 @@ class _ReaderQADJUST(_ReaderState):
     
     def handle_query_adjust(self, reader):
         reader.q = reader.q + reader.upDn.eval()
-        return reader.set_state(Reader.State.QREP)
+        #reader.set_state(Reader.State.QREP)
 
     def handle_query_reply(self, reader, frame):
         reader.last_rn = frame.reply.rn
@@ -567,7 +567,14 @@ class _ReaderRound:
         def slots_gen():
             yield _ReaderSlot(self, 0, Reader.State.QUERY)
             for i in range(1, round(pow(2, reader.q))):
-                yield _ReaderSlot(self, i, Reader.State.QREP)
+                if reader.state == Reader.State.QADJUST:
+                    yield _ReaderSlot(self, i, Reader.State.QADJUST)
+                    for j in range(1, round(pow(2, reader.q))):
+                        yield _ReaderSlot(self, j, Reader.State.QREP)
+                    break
+                else:    
+                    yield _ReaderSlot(self, i, Reader.State.QREP)
+                
 
         self._reader = reader
         self._slots = slots_gen()
@@ -1135,7 +1142,6 @@ class Tag:
             return None
         
         self._slot_counter = np.random.randint(0, pow(2, self._q + qadjust.upDn.eval()))
-
         if self._slot_counter == 0 and self.state is Tag.State.ARBITRATE:
             self._set_state(Tag.State.REPLY)
             self._rn = np.random.randint(0, 0x10000)
@@ -1557,8 +1563,15 @@ class Transaction(object):
     def received_tag_frame(self, medium, time):
         # NOTE: if two or more tags reply, their reply is treated as collision
         #       no matter of SNR. Try to implement this.
-        if len(self.replies) != 1:
+        if len(self.replies) == 0:
             return None, None, None, None
+        
+        if len(self.replies) > 1:
+            self._reader.upDn = std.UpDn.INCREASE
+            self._reader.set_state(Reader.State.QADJUST)
+            self._reader._state.handle_query_adjust(self._reader)
+            return None, None, None, None
+
         tag, frame = self.replies[0]
         snr = medium.estimate_reader_rx_snr(self.reader, tag, self.tags, time)
         ber = medium.estimate_reader_rx_ber(self.reader, tag, self.tags, snr)
