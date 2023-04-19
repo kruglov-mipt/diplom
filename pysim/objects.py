@@ -1563,14 +1563,14 @@ class Transaction(object):
     def received_tag_frame(self, medium, time):
         # NOTE: if two or more tags reply, their reply is treated as collision
         #       no matter of SNR. Try to implement this.
-        if len(self.replies) == 0:
+        if len(self.replies) != 1:
             return None, None, None, None
         
-        if len(self.replies) > 1:
-            self._reader.upDn = std.UpDn.INCREASE
-            self._reader.set_state(Reader.State.QADJUST)
-            self._reader._state.handle_query_adjust(self._reader)
-            return None, None, None, None
+        # if len(self.replies) > 1:
+        #     self._reader.upDn = std.UpDn.INCREASE
+        #     self._reader.set_state(Reader.State.QADJUST)
+        #     self._reader._state.handle_query_adjust(self._reader)
+        #     return None, None, None, None
 
         tag, frame = self.replies[0]
         snr = medium.estimate_reader_rx_snr(self.reader, tag, self.tags, time)
